@@ -1,78 +1,90 @@
 #include <SDL2/SDL.h>
 #include <stdio.h>
 #include <stdint.h>
+#include "images.h"
 
-#define SCR_WIDTH  256
 #define SCR_HEIGHT 256
+#define SCR_WIDTH  256
 
-int init();
-void close();
+void display_pixel_data();
 
-SDL_Window* window = NULL;
-SDL_Surface* screen_surface = NULL;
+uint32_t palette[16] = {0x051E3E, 0x251E3E, 0x451E3E, 0x651E3E, 
+                        0x851E3E, 0xFF3377, 0xFF5588, 0xFFBBEE,
+                        0xFF99CC, 0xFF77AA, 0xFF8B94, 0xFFAAA5,
+                        0xFFD3B6, 0xDCEDC1, 0xA8E6CF, 0x88D8B0};
 
-uint32_t pallette[16] = {0};
-uint8_t canvas[256][256] = {0};
+uint8_t pixel_data[SCR_HEIGHT][SCR_WIDTH] = {0};
 
 int main(int argc, char** argv)
 {
-    printf("Hi\n");
-    if (!init())
+    // vertical_stripes((uint8_t*)pixel_data, SCR_HEIGHT, SCR_WIDTH);
+    // horizontal_stripes((uint8_t*)pixel_data, SCR_HEIGHT, SCR_WIDTH);
+    concentric_squares((uint8_t*)pixel_data, SCR_HEIGHT, SCR_WIDTH);
+    display_pixel_data();
+    SDL_Init(SDL_INIT_VIDEO);
+    SDL_Window* window = SDL_CreateWindow("Video Drugs", 
+                                          SDL_WINDOWPOS_CENTERED, 
+                                          SDL_WINDOWPOS_CENTERED, 
+                                          SCR_WIDTH*2, SCR_HEIGHT*2, 
+                                          SDL_WINDOW_SHOWN);
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    SDL_Texture* texture = SDL_CreateTexture(renderer,
+                                             SDL_PIXELFORMAT_ARGB8888,
+                                             SDL_TEXTUREACCESS_STREAMING,
+                                             SCR_WIDTH,
+                                             SCR_HEIGHT);
+    int interrupted = 0;
+    int frame_counter = 0;
+    int offset = 0;
+    while (!interrupted)
     {
-        printf("Failed to initialize!\n");
-    }
-    else
-    {
-        printf("Hello\n");
-    }
-    while(1) {}
+        SDL_Event ev;
+        while (SDL_PollEvent(&ev))
+        {
+            switch (ev.type)
+            {
+                case SDL_KEYDOWN:
+                case SDL_KEYUP:
+                    switch (ev.key.keysym.sym)
+                    {
+                        case 'q': 
+                            interrupted = 1;
+                            break;
+                    }
+                    break;
+            }
+        }
+        uint32_t pixels[SCR_WIDTH*SCR_HEIGHT] = {0};
+        int i, j;
+        for (i = 0; i < SCR_HEIGHT; i++)
+            for (j = 0; j < SCR_WIDTH; j++)
+                pixels[i*SCR_HEIGHT+j] = palette[(pixel_data[i][j]+offset)%16];
 
-    close();
+        SDL_UpdateTexture(texture, NULL, pixels, 2*SCR_WIDTH);
+        SDL_RenderCopy(renderer, texture, NULL, NULL);
+        SDL_RenderPresent(renderer);
+        SDL_Delay(1000/60);
+        frame_counter = (frame_counter + 1) % 5;
+        if (frame_counter == 0)
+            offset = (offset + 1) % 16;
+    }
+
+
+    SDL_DestroyWindow(window);
+    window = NULL;
+    SDL_Quit();
     return 0;
 }
 
-int init()
+void display_pixel_data()
 {
-    // Initialization flag
-    int success = 1;
-
-    // Initialize SDL
-    if (SDL_Init(SDL_INIT_VIDEO) < 0)
+    int i, j;
+    for (i = 0; i < SCR_HEIGHT; i++)
     {
-        printf("SDL could not initialize! SDL_Error: %s\n", SDL_GetError());
-        success = 0;
-    }
-    else
-    {
-        window = SDL_CreateWindow("Video Drugs", 
-                                  SDL_WINDOWPOS_CENTERED, 
-                                  SDL_WINDOWPOS_CENTERED, 
-                                  SCR_WIDTH, SCR_HEIGHT, 
-                                  (  SDL_WINDOW_SHOWN
-                                   // | SDL_WINDOW_BORDERLESS 
-                                   | SDL_WINDOW_RESIZABLE 
-                                   | SDL_WINDOW_INPUT_FOCUS
-                                   | SDL_WINDOW_ALWAYS_ON_TOP));
-        if (window == NULL)
+        for (j = 0; j < SCR_WIDTH; j++)
         {
-            printf("Window could not be created! SDL Error: %s\n", SDL_GetError());
-            success = 0;
+            printf("%2d", pixel_data[i][j]);
         }
-        else
-        {
-            // Get window surface
-            screen_surface = SDL_GetWindowSurface(window);
-        }
+        printf("\n");
     }
-    return success;
-}
-
-void close()
-{
-    // Destroy window
-    SDL_DestroyWindow(window);
-    window = NULL;
-
-    // Quit SDL
-    SDL_Quit();
 }
