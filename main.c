@@ -6,6 +6,17 @@
 #define SCR_HEIGHT 256
 #define SCR_WIDTH  256
 
+typedef enum
+{
+    NONE                    = 0,
+    PALETTE_CYCLING         = 1 << 0,
+    BACKGROUND_SCROLLING    = 1 << 1,
+    HORIZONTAL_OSCILLATION  = 1 << 2,
+    INTERLEAVED_OSCILLATION = 1 << 3,
+    VERTICAL_OSCILLATION    = 1 << 4,
+    TRANSPARENCY            = 1 << 5,
+} Effect;
+
 void display_pixel_data();
 
 uint32_t palette[16] = {0x051E3E, 0x251E3E, 0x451E3E, 0x651E3E, 
@@ -20,7 +31,6 @@ int main(int argc, char** argv)
     // vertical_stripes((uint8_t*)pixel_data, SCR_HEIGHT, SCR_WIDTH);
     // horizontal_stripes((uint8_t*)pixel_data, SCR_HEIGHT, SCR_WIDTH);
     concentric_squares((uint8_t*)pixel_data, SCR_HEIGHT, SCR_WIDTH);
-    display_pixel_data();
     SDL_Init(SDL_INIT_VIDEO);
     SDL_Window* window = SDL_CreateWindow("Video Drugs", 
                                           SDL_WINDOWPOS_CENTERED, 
@@ -36,6 +46,7 @@ int main(int argc, char** argv)
     int interrupted = 0;
     int frame_counter = 0;
     int offset = 0;
+    Effect effects = PALETTE_CYCLING;
     while (!interrupted)
     {
         SDL_Event ev;
@@ -57,18 +68,25 @@ int main(int argc, char** argv)
         uint32_t pixels[SCR_WIDTH*SCR_HEIGHT] = {0};
         int i, j;
         for (i = 0; i < SCR_HEIGHT; i++)
+        {
             for (j = 0; j < SCR_WIDTH; j++)
-                pixels[i*SCR_HEIGHT+j] = palette[(pixel_data[i][j]+offset)%16];
+            {
+                int palette_index = pixel_data[i][j];
+                if (effects & PALETTE_CYCLING)
+                    palette_index = (palette_index + offset) % 16;
 
-        SDL_UpdateTexture(texture, NULL, pixels, 2*SCR_WIDTH);
+                pixels[i*SCR_HEIGHT+j] = palette[palette_index];
+            }
+        }
+
+        SDL_UpdateTexture(texture, NULL, pixels, 4*SCR_WIDTH);
         SDL_RenderCopy(renderer, texture, NULL, NULL);
         SDL_RenderPresent(renderer);
         SDL_Delay(1000/60);
-        frame_counter = (frame_counter + 1) % 5;
+        frame_counter = (frame_counter + 1) % 4;
         if (frame_counter == 0)
             offset = (offset + 1) % 16;
     }
-
 
     SDL_DestroyWindow(window);
     window = NULL;
