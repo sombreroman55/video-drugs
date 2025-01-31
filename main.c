@@ -5,11 +5,10 @@
 #include <stddef.h>
 #include "images.h"
 #include "palettes.h"
-#include "renderer.h"
 
 #define SCR_HEIGHT 256
 #define SCR_WIDTH  256
-#define LINE_TO_DEG 360 / 256
+#define LINE_TO_DEG 360.0f / 256.0f
 #define PI (atan(1)/4)
 
 double sine_table[256];
@@ -73,7 +72,7 @@ int main(int argc, char** argv)
                       // INTERLEAVED_OSCILLATION |
                       VERTICAL_OSCILLATION |
                       // TRANSPARENCY |
-                         NONE;
+                      NONE;
     while (!interrupted)
     {
         SDL_Event ev;

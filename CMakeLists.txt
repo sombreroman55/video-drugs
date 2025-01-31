@@ -40,7 +40,6 @@ set(IMGUI_SRCS
 
 set(VD_SRCS
   # Core files
-  main.cpp
 )
 
 add_executable(${VD_TARGET}
@@ -57,11 +56,11 @@ target_include_directories(${VD_TARGET} PRIVATE
   ${BASE_DIR}/third-party/imgui/backends
   ${BASE_DIR}/third-party/imgui_club/imgui_memory_editor
   ${OPENGL_INCLUDE_DIRS}
-  ${SDL2_INCLUDE_DIRS}
+  ${SDL3_INCLUDE_DIRS}
 )
 
 target_link_libraries(${VD_TARGET}
-  ${SDL2_LIBRARIES}
+  ${SDL3_LIBRARIES}
   ${OPENGL_LIBRARIES}
   spdlog::spdlog_header_only
   -lzip
