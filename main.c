@@ -1,4 +1,4 @@
-#include <SDL2/SDL.h>
+#include <SDL3/SDL.h>
 #include <math.h>
 #include <stdio.h>
 #include <stdint.h>
@@ -10,8 +10,8 @@
 #define SCR_HEIGHT 256
 #define SCR_WIDTH  256
 #define LINE_TO_DEG 360 / 256
+#define PI (atan(1)/4)
 
-const double PI = atan(1) / 4;
 double sine_table[256];
 
 int offset_from_angle (double degrees, double amplitude, double period, double shift);
@@ -33,7 +33,7 @@ typedef enum
     TRANSPARENCY            = 1 << 5,
 } Effect;
 
-uint32_t* palette = pastelle_rainbow;
+uint32_t* palette = something;
 size_t palette_size;
 
 uint8_t pixel_data[SCR_HEIGHT][SCR_WIDTH] = {0};
@@ -42,15 +42,12 @@ int main(int argc, char** argv)
 {
     palette_size = palette[0];
     // vertical_stripes((uint8_t*)pixel_data, SCR_HEIGHT, SCR_WIDTH);
+    //vertical_stripes2((uint8_t*)pixel_data, SCR_HEIGHT, SCR_WIDTH);
     // horizontal_stripes((uint8_t*)pixel_data, SCR_HEIGHT, SCR_WIDTH);
     concentric_squares((uint8_t*)pixel_data, SCR_HEIGHT, SCR_WIDTH);
     SDL_Init(SDL_INIT_VIDEO);
-    SDL_Window* window = SDL_CreateWindow("Video Drugs", 
-                                          SDL_WINDOWPOS_CENTERED, 
-                                          SDL_WINDOWPOS_CENTERED, 
-                                          SCR_WIDTH*2, SCR_HEIGHT*2, 
-                                          SDL_WINDOW_SHOWN);
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED);
+    SDL_Window* window = SDL_CreateWindow("Video Drugs", SCR_WIDTH*2, SCR_HEIGHT*2, 0);
+    SDL_Renderer* renderer = SDL_CreateRenderer(window, NULL);
     SDL_Texture* texture = SDL_CreateTexture(renderer,
                                              SDL_PIXELFORMAT_ARGB8888,
                                              SDL_TEXTUREACCESS_STREAMING,
@@ -63,19 +60,19 @@ int main(int argc, char** argv)
     int h_scroll_counter = 0;
     int v_scroll_counter = 0;
     int h_scroll_rate = 1;
-    int v_scroll_rate = 4;
+    int v_scroll_rate = 1;
     int h_scroll_offset = 0;
     int v_scroll_offset = 0;
 
     int h_sine_offset = 0;
     int v_sine_offset = 0;
     double sine_shift = 0;
-    Effect effects =     PALETTE_CYCLING | 
-                         BACKGROUND_SCROLLING |
-                      /* HORIZONTAL_OSCILLATION | */
-                      /* INTERLEAVED_OSCILLATION | */
-                         VERTICAL_OSCILLATION | 
-                      /* TRANSPARENCY | */ 
+    Effect effects =  PALETTE_CYCLING |
+                      // BACKGROUND_SCROLLING |
+                      HORIZONTAL_OSCILLATION |
+                      // INTERLEAVED_OSCILLATION |
+                      VERTICAL_OSCILLATION |
+                      // TRANSPARENCY |
                          NONE;
     while (!interrupted)
     {
@@ -84,11 +81,11 @@ int main(int argc, char** argv)
         {
             switch (ev.type)
             {
-                case SDL_KEYDOWN:
-                case SDL_KEYUP:
-                    switch (ev.key.keysym.sym)
+                case SDL_EVENT_KEY_DOWN:
+                case SDL_EVENT_KEY_UP:
+                    switch (ev.key.key)
                     {
-                        case 'q': 
+                        case 'q':
                             interrupted = 1;
                             break;
                     }
@@ -117,19 +114,19 @@ int main(int argc, char** argv)
                 {
                     v_sine_offset = offset_from_angle(i * LINE_TO_DEG, 24, 16, sine_shift);
                 }
-                int y = i + v_sine_offset + v_scroll_offset; 
+                int y = i + v_sine_offset + v_scroll_offset;
                 while (y < 0) y += SCR_HEIGHT; y %= SCR_HEIGHT;
-                int x = j + h_sine_offset + h_scroll_offset; 
+                int x = j + h_sine_offset + h_scroll_offset;
                 while (x < 0) x += SCR_WIDTH; x %= SCR_WIDTH;
                 int palette_index = pixel_data[y][x];
                 if (effects & PALETTE_CYCLING)
                     palette_index = (palette_index + p_offset) % palette_size;
-                pixels[i*SCR_HEIGHT+j] = palette[palette_index+1];
+                pixels[i*SCR_HEIGHT+j] = palette[palette_index+1] | 0xFF000000;
             }
         }
 
         SDL_UpdateTexture(texture, NULL, pixels, 4*SCR_WIDTH);
-        SDL_RenderCopy(renderer, texture, NULL, NULL);
+        SDL_RenderTexture(renderer, texture, NULL, NULL);
         SDL_RenderPresent(renderer);
         SDL_Delay(1000/60);
         frame_counter = (frame_counter + 1) % 20;
@@ -145,13 +142,13 @@ int main(int argc, char** argv)
             h_scroll_counter = (h_scroll_counter + 1) % h_scroll_rate;
             if (v_scroll_counter == 0)
             {
-                v_scroll_offset += 1; 
+                v_scroll_offset += 1;
                 v_scroll_offset %= SCR_HEIGHT;
             }
 
             if (h_scroll_counter == 0)
             {
-                h_scroll_offset += 1; 
+                h_scroll_offset += 1;
                 h_scroll_offset %= SCR_WIDTH;
             }
         }

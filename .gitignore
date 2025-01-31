@@ -1,5 +1,9 @@
+.cache
+.cmake
+
 # Text editor auto-generated files
 *.swp
 *.un
 *~
+compile_commands.json
 videodrugs

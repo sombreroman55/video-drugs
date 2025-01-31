@@ -14,6 +14,14 @@ void vertical_stripes(uint8_t* pixel_data, int h, int w)
             pixel_data[i*h+j] = i/palette_size;
 }
 
+void vertical_stripes2(uint8_t* pixel_data, int h, int w)
+{
+    int i, j;
+    for (i = 0; i < h; i++)
+        for (j = 0; j < w; j++)
+            pixel_data[i*h+j] = (i+j)%palette_size;
+}
+
 void horizontal_stripes(uint8_t* pixel_data, int h, int w)
 {
     int i, j;
