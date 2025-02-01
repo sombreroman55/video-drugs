@@ -51,7 +51,7 @@ void vertical_stripes(uint8_t* pixel_data, int h, int w, int colors)
     int i, j;
     for (i = 0; i < h; i++)
         for (j = 0; j < w; j++)
-            pixel_data[i*h+j] = i/colors;
+            pixel_data[i * h + j] = i / colors;
 }
 
 void vertical_stripes2(uint8_t* pixel_data, int h, int w, int colors)
@@ -59,7 +59,7 @@ void vertical_stripes2(uint8_t* pixel_data, int h, int w, int colors)
     int i, j;
     for (i = 0; i < h; i++)
         for (j = 0; j < w; j++)
-            pixel_data[i*h+j] = (i+j)%colors;
+            pixel_data[i * h + j] = (i + j) % colors;
 }
 
 void horizontal_stripes(uint8_t* pixel_data, int h, int w, int colors)
@@ -67,7 +67,7 @@ void horizontal_stripes(uint8_t* pixel_data, int h, int w, int colors)
     int i, j;
     for (j = 0; j < w; j++)
         for (i = 0; i < h; i++)
-            pixel_data[i*h+j] = j/colors;
+            pixel_data[i * h + j] = j / colors;
 }
 
 void concentric_squares(uint8_t* pixel_data, int h, int w, int colors)
@@ -110,7 +110,7 @@ static void use_preset_palette(PaletteNumber pn)
 static void init_stuff(void)
 {
     use_preset_palette(pastelle_rainbow);
-    concentric_squares((uint8_t*)pixel_idxs, SCR_HEIGHT, SCR_WIDTH, 8);
+    concentric_squares((uint8_t*)pixel_idxs, SCR_HEIGHT, SCR_WIDTH, 16);
 }
 
 int offset_from_angle(float deg, float amp, float freq, float xshift)
@@ -289,16 +289,16 @@ int main(int, char**)
                     ImGui::SliderInt("Interleave interval", &interleave_interval, 1, 20);
                 }
                 ImGui::SliderInt("H. Oscillation Interval", &hosc_interval, 1, 20);
-                ImGui::SliderFloat("H. Oscillation Amplitude", &hosc_amplitude, 1, 100);
+                ImGui::SliderFloat("H. Oscillation Amplitude", &hosc_amplitude, 1, 1000);
                 ImGui::SliderFloat("H. Oscillation Frequency", &hosc_freq, 1, 100);
-                ImGui::SliderFloat("H. Oscillation X Shift", &hosc_xshift, 1, 100);
+                ImGui::SliderFloat("H. Oscillation Shift Increment", &hosc_xshift, 0, 1);
             }
             ImGui::Checkbox("Vertical Oscillation", &vertical_oscillation);
             if (vertical_oscillation) {
                 ImGui::SliderInt("V. Oscillation Interval", &vosc_interval, 1, 20);
-                ImGui::SliderFloat("V. Oscillation Amplitude", &vosc_amplitude, 1, 100);
-                ImGui::SliderFloat("V. Oscillation Frequency", &vosc_freq, 1, 100);
-                ImGui::SliderFloat("V. Oscillation X Shift", &vosc_xshift, 1, 100);
+                ImGui::SliderFloat("V. Oscillation Amplitude", &vosc_amplitude, 1, 1000);
+                ImGui::SliderFloat("V. Oscillation Frequency", &vosc_freq, 0, 100);
+                ImGui::SliderFloat("V. Oscillation Shift Increment", &vosc_xshift, 0, 1);
             }
             // ImGui::Checkbox("Transparency", &transparency);
 
@@ -306,16 +306,20 @@ int main(int, char**)
 
             static int p_offset = 0;
 
-            static int interleave_mult = 1;
-            static int h_sine_offset = 0;
+            int interleave_mult = 1;
+            int h_sine_offset = 0;
             static int h_scroll_offset = 0;
             static float h_sine_shift = 0.0f;
 
-            static int v_sine_offset = 0;
+            int v_sine_offset = 0;
             static int v_scroll_offset = 0;
             static float v_sine_shift = 0.0f;
-            if (frame_counter % (palette_cycle_interval + 1) == 0) {
-                p_offset = (p_offset + 1) % 16;
+            if (palette_cycling) {
+                if (frame_counter % (palette_cycle_interval + 1) == 0) {
+                    p_offset = (p_offset + 1) % 16;
+                }
+            } else {
+                p_offset = 0;
             }
 
             if (background_scrolling) {
@@ -328,25 +332,30 @@ int main(int, char**)
                 v_scroll_offset = 0;
             }
 
-            if (frame_counter % (hosc_interval + 1) == 0) {
-                h_sine_shift += hosc_xshift;
+            if (horizontal_oscillation) {
+                if (frame_counter % (hosc_interval + 1) == 0) {
+                    h_sine_shift += hosc_xshift;
+                }
             }
 
-            if (frame_counter % (vosc_interval + 1) == 0) {
-                v_sine_shift += vosc_xshift;
+            if (vertical_oscillation) {
+                if (frame_counter % (vosc_interval + 1) == 0) {
+                    v_sine_shift += vosc_xshift;
+                }
             }
 
             int i, j;
             for (i = 0; i < SCR_HEIGHT; i++) {
+                if (interleaved_oscillation) {
+                    if (i % (interleave_interval) == 0) {
+                        interleave_mult *= -1;
+                    }
+                } else {
+                    interleave_mult = 1;
+                }
                 for (j = 0; j < SCR_WIDTH; j++) {
                     if (horizontal_oscillation) {
-                        h_sine_offset = offset_from_angle(i * LINE_TO_DEG, hosc_amplitude, hosc_freq, h_sine_shift);
-                        if (interleaved_oscillation) {
-                            if (i % (interleave_interval + 1) == 0) {
-                                interleave_mult = -interleave_mult;
-                            }
-                        }
-                        h_sine_offset *= interleave_mult;
+                        h_sine_offset = offset_from_angle(i * LINE_TO_DEG, hosc_amplitude, hosc_freq, h_sine_shift) * interleave_mult;
                     }
                     if (vertical_oscillation) {
                         v_sine_offset = offset_from_angle(i * LINE_TO_DEG, vosc_amplitude, vosc_freq, v_sine_shift);
@@ -360,9 +369,8 @@ int main(int, char**)
                         x += SCR_WIDTH;
                     x %= SCR_WIDTH;
                     int palette_index = pixel_idxs[y][x];
-                    if (palette_cycling)
-                        palette_index = (palette_index + p_offset) % 16;
-                    pixels[i * SCR_HEIGHT + j] = uint_palette[palette_index + 1];
+                    palette_index = (palette_index + p_offset) % 16;
+                    pixels[i * SCR_WIDTH + j] = uint_palette[palette_index];
                 }
             }
         }
