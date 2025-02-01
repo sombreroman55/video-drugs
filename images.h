@@ -9,8 +9,6 @@
 
 #include <stdint.h>
 
-extern size_t palette_size;
-
 void vertical_stripes(uint8_t* pixel_data, int h, int w);
 void vertical_stripes2(uint8_t* pixel_data, int h, int w);
 void horizontal_stripes(uint8_t* pixel_data, int h, int w);

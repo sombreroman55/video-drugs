@@ -1,12 +1,3 @@
-// Dear ImGui: standalone example application for SDL3 + OpenGL
-// (SDL is a cross-platform general purpose library for handling windows, inputs, OpenGL/Vulkan/Metal graphics context creation, etc.)
-
-// Learn about Dear ImGui:
-// - FAQ                  https://dearimgui.com/faq
-// - Getting Started      https://dearimgui.com/getting-started
-// - Documentation        https://dearimgui.com/docs (same as your local docs/ folder).
-// - Introduction, links and more at the top of imgui.cpp
-
 #include "imgui.h"
 #include "imgui_impl_opengl3.h"
 #include "imgui_impl_sdl3.h"
@@ -18,13 +9,98 @@
 #include <SDL3/SDL_opengl.h>
 #endif
 
+#include <cmath>
+
+#define SCR_WIDTH 256
+#define SCR_HEIGHT 256
+#define LINE_TO_DEG (360.0f / SCR_HEIGHT)
+#define PI (atan(1) / 4)
+
 #ifdef __EMSCRIPTEN__
 #include "../libs/emscripten/emscripten_mainloop_stub.h"
 #endif
 
+typedef enum {
+    pastelle_rainbow,
+    blue_greens,
+    magicant,
+    something,
+} PaletteNumber;
+
+const char* preset_palette_names[4] = {
+    "Pastelle Rainbow",
+    "Blue Greens",
+    "Magicant",
+    "i dunno"
+};
+
+uint32_t preset_palettes[4][16] = {
+    { 0x051E3EFF, 0x251E3EFF, 0x451E3EFF, 0x651E3EFF, 0x851E3EFF, 0xFF3377FF, 0xFF5588FF, 0xFFBBEEFF, 0xFF99CCFF, 0xFF77AAFF, 0xFF8B94FF, 0xFFAAA5FF, 0xFFD3B6FF, 0xDCEDC1FF, 0xA8E6CFFF, 0x88D8B0FF },
+    { 0x011F4BFF, 0x011F4BFF, 0x011F4BFF, 0x03396CFF, 0x03396CFF, 0x005B96FF, 0x6497B1FF, 0xB3CDE0FF, 0xB2D8D8FF, 0x66B2B2FF, 0x008080FF, 0x006666FF, 0x006666FF, 0x004C4CFF, 0x004C4CFF, 0x004C4CFF },
+    { 0x9EDDFFFF, 0xA0CBFFFF, 0xA0C4FFFF, 0xC8B6FFFF, 0xD8BBFFFF, 0xE7BFFFFF, 0xFFC6FFFF, 0xFFCEFFFF, 0xFFD9FFFF, 0x000000FF, 0x000000FF, 0x000000FF, 0x000000FF, 0x000000FF, 0x000000FF, 0x000000FF },
+    { 0xF72585FF, 0xB5179EFF, 0x7209B7FF, 0x560BADFF, 0x480CA8FF, 0x3A0CA3FF, 0x3F37C9FF, 0x4361EEFF, 0x4895EFFF, 0x4CC9F0FF, 0x000000FF, 0x000000FF, 0x000000FF, 0x000000FF, 0x000000FF, 0x000000FF }
+};
+
+uint32_t uint_palette[16] = { 0 };
+float float_palette[16][4] = { 0 };
+uint8_t pixel_idxs[SCR_HEIGHT][SCR_WIDTH] = { 0 };
+uint32_t pixels[SCR_WIDTH * SCR_HEIGHT] = { 0 };
+
+void concentric_squares(uint8_t* pixel_data, int h, int w)
+{
+    int chunk = 8 * 2;
+    int i, j, k, h_off = 0, w_off = 0, h_inc = h / chunk, w_inc = w / chunk;
+    for (k = 0; k < 8; k++) {
+        for (i = h_off; i < h - h_off; i++) {
+            for (j = w_off; j < w - w_off; j++) {
+                pixel_data[i * h + j] = k;
+            }
+        }
+        h_off += h_inc;
+        w_off += w_inc;
+    }
+}
+
+static void update_palette(void)
+{
+    for (int i = 0; i < 16; i++) {
+        uint8_t r = float_palette[i][0] * 255;
+        uint8_t g = float_palette[i][1] * 255;
+        uint8_t b = float_palette[i][2] * 255;
+        uint8_t a = float_palette[i][3] * 255;
+        uint_palette[i] = (a << 24) | (b << 16) | (g << 8) | r;
+    }
+}
+
+static void use_preset_palette(PaletteNumber pn)
+{
+    memcpy(uint_palette, preset_palettes[pn], sizeof(uint_palette));
+    for (int i = 0; i < 16; i++) {
+        float_palette[i][0] = (uint_palette[i] >> 24 & 0xFF) / 255.0f;
+        float_palette[i][1] = (uint_palette[i] >> 16 & 0xFF) / 255.0f;
+        float_palette[i][2] = (uint_palette[i] >> 8 & 0xFF) / 255.0f;
+        float_palette[i][3] = (uint_palette[i] >> 0 & 0xFF) / 255.0f;
+    }
+}
+
+static void init_stuff(void)
+{
+    use_preset_palette(pastelle_rainbow);
+    concentric_squares((uint8_t*)pixel_idxs, SCR_HEIGHT, SCR_WIDTH);
+}
+
+int offset_from_angle(float deg, float amp, float freq, float xshift)
+{
+    freq /= 2 * PI;
+    float rad = (deg * PI) / 180.0;
+    return (int)(amp * sin(freq * rad + xshift));
+}
+
 // Main code
 int main(int, char**)
 {
+    init_stuff();
+
     // Setup SDL
     if (!SDL_Init(SDL_INIT_VIDEO | SDL_INIT_GAMEPAD)) {
         printf("Error: SDL_Init(): %s\n", SDL_GetError());
@@ -67,7 +143,7 @@ int main(int, char**)
     SDL_GL_SetAttribute(SDL_GL_DEPTH_SIZE, 24);
     SDL_GL_SetAttribute(SDL_GL_STENCIL_SIZE, 8);
     Uint32 window_flags = SDL_WINDOW_OPENGL | SDL_WINDOW_RESIZABLE | SDL_WINDOW_HIDDEN;
-    SDL_Window* window = SDL_CreateWindow("Dear ImGui SDL3+OpenGL3 example", 1280, 720, window_flags);
+    SDL_Window* window = SDL_CreateWindow("Video Drugs", 1280, 720, window_flags);
     if (window == nullptr) {
         printf("Error: SDL_CreateWindow(): %s\n", SDL_GetError());
         return -1;
@@ -99,27 +175,17 @@ int main(int, char**)
     ImGui_ImplSDL3_InitForOpenGL(window, gl_context);
     ImGui_ImplOpenGL3_Init(glsl_version);
 
-    // Load Fonts
-    // - If no fonts are loaded, dear imgui will use the default font. You can also load multiple fonts and use ImGui::PushFont()/PopFont() to select them.
-    // - AddFontFromFileTTF() will return the ImFont* so you can store it if you need to select the font among multiple.
-    // - If the file cannot be loaded, the function will return a nullptr. Please handle those errors in your application (e.g. use an assertion, or display an error and quit).
-    // - The fonts will be rasterized at a given size (w/ oversampling) and stored into a texture when calling ImFontAtlas::Build()/GetTexDataAsXXXX(), which ImGui_ImplXXXX_NewFrame below will call.
-    // - Use '#define IMGUI_ENABLE_FREETYPE' in your imconfig file to use Freetype for higher quality font rendering.
-    // - Read 'docs/FONTS.md' for more instructions and details.
-    // - Remember that in C/C++ if you want to include a backslash \ in a string literal you need to write a double backslash \\ !
-    // - Our Emscripten build process allows embedding fonts to be accessible at runtime from the "fonts/" folder. See Makefile.emscripten for details.
-    // io.Fonts->AddFontDefault();
-    // io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\segoeui.ttf", 18.0f);
-    // io.Fonts->AddFontFromFileTTF("../../misc/fonts/DroidSans.ttf", 16.0f);
-    // io.Fonts->AddFontFromFileTTF("../../misc/fonts/Roboto-Medium.ttf", 16.0f);
-    // io.Fonts->AddFontFromFileTTF("../../misc/fonts/Cousine-Regular.ttf", 15.0f);
-    // ImFont* font = io.Fonts->AddFontFromFileTTF("c:\\Windows\\Fonts\\ArialUni.ttf", 18.0f, nullptr, io.Fonts->GetGlyphRangesJapanese());
-    // IM_ASSERT(font != nullptr);
+    unsigned int tex;
+    glGenTextures(1, &tex);
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_LINEAR);
+    glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_LINEAR);
 
     // Our state
     bool show_demo_window = true;
     bool show_another_window = false;
     ImVec4 clear_color = ImVec4(0.45f, 0.55f, 0.60f, 1.00f);
+    uint32_t frame_counter = 0;
 
     // Main loop
     bool done = false;
@@ -132,11 +198,6 @@ int main(int, char**)
     while (!done)
 #endif
     {
-        // Poll and handle events (inputs, window resize, etc.)
-        // You can read the io.WantCaptureMouse, io.WantCaptureKeyboard flags to tell if dear imgui wants to use your inputs.
-        // - When io.WantCaptureMouse is true, do not dispatch mouse input data to your main application, or clear/overwrite your copy of the mouse data.
-        // - When io.WantCaptureKeyboard is true, do not dispatch keyboard input data to your main application, or clear/overwrite your copy of the keyboard data.
-        // Generally you may always pass all inputs to dear imgui, and hide them from your application based on those two flags.
         SDL_Event event;
         while (SDL_PollEvent(&event)) {
             ImGui_ImplSDL3_ProcessEvent(&event);
@@ -155,83 +216,139 @@ int main(int, char**)
         ImGui_ImplSDL3_NewFrame();
         ImGui::NewFrame();
 
-        // 1. Show the big demo window (Most of the sample code is in ImGui::ShowDemoWindow()! You can browse its code to learn more about Dear ImGui!).
-        if (show_demo_window)
-            ImGui::ShowDemoWindow(&show_demo_window);
-
-        // 2. Show a simple window that we create ourselves. We use a Begin/End pair to create a named window.
-        {
-            static float f = 0.0f;
-            static int counter = 0;
-
-            ImGui::Begin("Hello, world!"); // Create a window called "Hello, world!" and append into it.
-
-            ImGui::Text("This is some useful text."); // Display some text (you can use a format strings too)
-            ImGui::Checkbox("Demo Window", &show_demo_window); // Edit bools storing our window open/close state
-            ImGui::Checkbox("Another Window", &show_another_window);
-
-            ImGui::SliderFloat("float", &f, 0.0f, 1.0f); // Edit 1 float using a slider from 0.0f to 1.0f
-            ImGui::ColorEdit3("clear color", (float*)&clear_color); // Edit 3 floats representing a color
-
-            if (ImGui::Button("Button")) // Buttons return true when clicked (most widgets return true when edited/activated)
-                counter++;
-            ImGui::SameLine();
-            ImGui::Text("counter = %d", counter);
-
-            ImGui::Text("Application average %.3f ms/frame (%.1f FPS)", 1000.0f / io.Framerate, io.Framerate);
-            ImGui::End();
-        }
-
         static bool show_video_drugs = true;
 
-        static bool pallette_cycling = false;
-        static int frames_per_palette_cycle = 3;
+        static bool palette_cycling = false;
+        static int palette_cycle_interval = 3;
 
         static bool background_scrolling = false;
+        static int xstep = 0;
+        static int ystep = 0;
 
         static bool horizontal_oscillation = false;
         static bool interleaved_oscillation = false;
+        static int interleave_interval = 1;
+        static int hosc_interval = 1;
         static float hosc_amplitude = 1.0f;
         static float hosc_freq = 1.0f;
         static float hosc_xshift = 0.0f;
-        static float hosc_yshift = 0.0f;
 
         static bool vertical_oscillation = false;
+        static int vosc_interval = 1;
         static float vosc_amplitude = 1.0f;
         static float vosc_freq = 1.0f;
         static float vosc_xshift = 0.0f;
-        static float vosc_yshift = 0.0f;
 
         static bool transparency = false;
 
-        if (show_video_drugs) {
-            ImGui::Begin("Video Drugs", &show_video_drugs);
-            ImGui::Checkbox("Palette Cycling", &pallette_cycling);
-            if (pallette_cycling) {
-                ImGui::SliderInt("Frames per cycle step", &frames_per_palette_cycle, 1, 60);
+        ImGui::Begin("Effects");
+        {
+            for (int i = 0; i < 16; i++) {
+                char label[64];
+                sprintf(label, "Palette Color %d", i + 1);
+                ImGui::ColorEdit4(label, float_palette[i]);
+            }
+            ImGui::Checkbox("Palette Cycling", &palette_cycling);
+            if (palette_cycling) {
+                ImGui::SliderInt("Palette Cycle interval", &palette_cycle_interval, 1, 60);
             }
 
             ImGui::Checkbox("Background Scrolling", &background_scrolling);
+            if (background_scrolling) {
+                ImGui::SliderInt("X Scroll Step", &xstep, -10, 10);
+                ImGui::SliderInt("Y Scroll Step", &ystep, -10, 10);
+            }
             ImGui::Checkbox("Horizontal Oscillation", &horizontal_oscillation);
             if (horizontal_oscillation) {
                 ImGui::Checkbox("Interleaved Oscillation", &interleaved_oscillation);
+                if (interleaved_oscillation) {
+                    ImGui::SliderInt("Interleave interval", &interleave_interval, 1, 20);
+                }
+                ImGui::SliderInt("H. Oscillation Interval", &hosc_interval, 1, 20);
+                ImGui::SliderFloat("H. Oscillation Amplitude", &hosc_amplitude, 1, 100);
+                ImGui::SliderFloat("H. Oscillation Frequency", &hosc_freq, 1, 100);
+                ImGui::SliderFloat("H. Oscillation X Shift", &hosc_xshift, 1, 100);
             }
             ImGui::Checkbox("Vertical Oscillation", &vertical_oscillation);
-            ImGui::Checkbox("Transparency", &transparency);
-            // TODO: Do the actual pixel buffer effect
-            // TODO: Render the pixel buffer to a texture
-            // TODO: Render the texture to an ImGui::Image
-            ImGui::End();
-        }
+            if (vertical_oscillation) {
+                ImGui::SliderInt("V. Oscillation Interval", &vosc_interval, 1, 20);
+                ImGui::SliderFloat("V. Oscillation Amplitude", &vosc_amplitude, 1, 100);
+                ImGui::SliderFloat("V. Oscillation Frequency", &vosc_freq, 1, 100);
+                ImGui::SliderFloat("V. Oscillation X Shift", &vosc_xshift, 1, 100);
+            }
+            // ImGui::Checkbox("Transparency", &transparency);
 
-        // 3. Show another simple window.
-        if (show_another_window) {
-            ImGui::Begin("Another Window", &show_another_window); // Pass a pointer to our bool variable (the window will have a closing button that will clear the bool when clicked)
-            ImGui::Text("Hello from another window!");
-            if (ImGui::Button("Close Me"))
-                show_another_window = false;
-            ImGui::End();
+            update_palette();
+
+            static int p_offset = 0;
+
+            static int interleave_mult = 1;
+            static int h_sine_offset = 0;
+            static int h_scroll_offset = 0;
+            static float h_sine_shift = 0.0f;
+
+            static int v_sine_offset = 0;
+            static int v_scroll_offset = 0;
+            static float v_sine_shift = 0.0f;
+            if (frame_counter % (palette_cycle_interval + 1) == 0) {
+                p_offset = (p_offset + 1) % 16;
+            }
+
+            if (background_scrolling) {
+                v_scroll_offset += SCR_HEIGHT + ystep;
+                h_scroll_offset += SCR_WIDTH + xstep;
+                v_scroll_offset %= SCR_HEIGHT;
+                h_scroll_offset %= SCR_WIDTH;
+            } else {
+                h_scroll_offset = 0;
+                v_scroll_offset = 0;
+            }
+
+            if (frame_counter % (hosc_interval + 1) == 0) {
+                h_sine_shift += hosc_xshift;
+            }
+
+            if (frame_counter % (vosc_interval + 1) == 0) {
+                v_sine_shift += vosc_xshift;
+            }
+
+            int i, j;
+            for (i = 0; i < SCR_HEIGHT; i++) {
+                for (j = 0; j < SCR_WIDTH; j++) {
+                    if (horizontal_oscillation) {
+                        h_sine_offset = offset_from_angle(i * LINE_TO_DEG, hosc_amplitude, hosc_freq, h_sine_shift);
+                        if (interleaved_oscillation) {
+                            if (i % (interleave_interval + 1) == 0) {
+                                interleave_mult = -interleave_mult;
+                            }
+                        }
+                        h_sine_offset *= interleave_mult;
+                    }
+                    if (vertical_oscillation) {
+                        v_sine_offset = offset_from_angle(i * LINE_TO_DEG, vosc_amplitude, vosc_freq, v_sine_shift);
+                    }
+                    int y = i + v_sine_offset + v_scroll_offset;
+                    while (y < 0)
+                        y += SCR_HEIGHT;
+                    y %= SCR_HEIGHT;
+                    int x = j + h_sine_offset + h_scroll_offset;
+                    while (x < 0)
+                        x += SCR_WIDTH;
+                    x %= SCR_WIDTH;
+                    int palette_index = pixel_idxs[y][x];
+                    if (palette_cycling)
+                        palette_index = (palette_index + p_offset) % 16;
+                    pixels[i * SCR_HEIGHT + j] = uint_palette[palette_index + 1];
+                }
+            }
         }
+        ImGui::End();
+        ImGui::Begin("Image");
+        {
+            glTexImage2D(GL_TEXTURE_2D, 0, GL_RGBA, SCR_WIDTH, SCR_HEIGHT, 0, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+            ImGui::Image((ImTextureID)(intptr_t)tex, ImVec2(SCR_WIDTH, SCR_HEIGHT));
+        }
+        ImGui::End();
 
         // Rendering
         ImGui::Render();
@@ -240,6 +357,7 @@ int main(int, char**)
         glClear(GL_COLOR_BUFFER_BIT);
         ImGui_ImplOpenGL3_RenderDrawData(ImGui::GetDrawData());
         SDL_GL_SwapWindow(window);
+        frame_counter++;
     }
 #ifdef __EMSCRIPTEN__
     EMSCRIPTEN_MAINLOOP_END;
