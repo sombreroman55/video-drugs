@@ -46,11 +46,35 @@ float float_palette[16][4] = { 0 };
 uint8_t pixel_idxs[SCR_HEIGHT][SCR_WIDTH] = { 0 };
 uint32_t pixels[SCR_WIDTH * SCR_HEIGHT] = { 0 };
 
-void concentric_squares(uint8_t* pixel_data, int h, int w)
+void vertical_stripes(uint8_t* pixel_data, int h, int w, int colors)
 {
-    int chunk = 8 * 2;
+    int i, j;
+    for (i = 0; i < h; i++)
+        for (j = 0; j < w; j++)
+            pixel_data[i*h+j] = i/colors;
+}
+
+void vertical_stripes2(uint8_t* pixel_data, int h, int w, int colors)
+{
+    int i, j;
+    for (i = 0; i < h; i++)
+        for (j = 0; j < w; j++)
+            pixel_data[i*h+j] = (i+j)%colors;
+}
+
+void horizontal_stripes(uint8_t* pixel_data, int h, int w, int colors)
+{
+    int i, j;
+    for (j = 0; j < w; j++)
+        for (i = 0; i < h; i++)
+            pixel_data[i*h+j] = j/colors;
+}
+
+void concentric_squares(uint8_t* pixel_data, int h, int w, int colors)
+{
+    int chunk = colors * 2;
     int i, j, k, h_off = 0, w_off = 0, h_inc = h / chunk, w_inc = w / chunk;
-    for (k = 0; k < 8; k++) {
+    for (k = 0; k < colors; k++) {
         for (i = h_off; i < h - h_off; i++) {
             for (j = w_off; j < w - w_off; j++) {
                 pixel_data[i * h + j] = k;
@@ -86,7 +110,7 @@ static void use_preset_palette(PaletteNumber pn)
 static void init_stuff(void)
 {
     use_preset_palette(pastelle_rainbow);
-    concentric_squares((uint8_t*)pixel_idxs, SCR_HEIGHT, SCR_WIDTH);
+    concentric_squares((uint8_t*)pixel_idxs, SCR_HEIGHT, SCR_WIDTH, 8);
 }
 
 int offset_from_angle(float deg, float amp, float freq, float xshift)
