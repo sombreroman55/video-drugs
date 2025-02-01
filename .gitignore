@@ -7,4 +7,3 @@ cmake
 *.un
 *~
 compile_commands.json
-videodrugs
